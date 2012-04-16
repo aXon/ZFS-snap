@@ -40,8 +40,9 @@ Options:
 -d <default option> : hourly, daily, weekly, monthly, yearly
 -l <label> default: Automatic
 -p pretend, no snapshot creation or deletion
--d debug (not implemented)
--h help (not implemented) 
+-v verbose (not implemented)
+-h help (not implemented)
+-u <property to look for>=<value> default: com.sun:auto-snapshot=true
 -r <number> : number of how many of those backups to retain ; default: 10
 ```
 
@@ -52,6 +53,7 @@ daily: AutoD 7
 weekly: AutoW 4
 monthly: AutoM 12
 yearly: AutoY 10
+Default retentions have precedence over user retention numbers.
 
 ## Crontab
 
@@ -61,11 +63,11 @@ as root and enter following lines as  examples into your crontab editor to allow
 
 ```
 PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
-@hourly /root/zfs_round.sh -d hourly
-@daily /root/zfs_round.sh -d daily
-@weekly /root/zfs_round.sh -d weekly
-@monthly /root/zfs_round.sh -d monthly
-@yearly /root/zfs_round.sh -d yearly
+hourly /root/zfs_snap.sh -d hourly
+@daily /root/zfs_snap.sh -d daily
+@weekly /root/zfs_snap.sh -d weekly
+@monthly /root/zfs_snap.sh -d monthly
+@yearly /root/zfs_snap.sh -d yearly
 ```
 The change to the PATH variable is optional, but necessary on FreeBSD. Other systems have not been tested.
 
@@ -73,8 +75,9 @@ The change to the PATH variable is optional, but necessary on FreeBSD. Other sys
 
 I started my ZFS raid under Open Solaris and saw that my initial raid had a strange property that would
  not pop up anywhere apart from Solaris documentation: com.sun:auto-snapshot.
-I use this property to determine if I back up a ZFS filesystem or not and therefore you will have to use this one
-as well. I have prepared the script to make this an option, but could not think of another property to use.
+I use this property to determine if I back up a ZFS filesystem or not, but as ZFS allows for user properties,
+you can create and use your own ones as well, once it is implemented. 
+
 
 ## Shortcomings
 

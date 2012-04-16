@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 #
-#  take ZFS snapshots with a time stamp
+# zfs_snap.sh version v 0.2 2012-04-16
+# Copyright 2012 Nils Bausch
+# License GNU AGPL 3 or later
+#
+# take ZFS snapshots with a time stamp
 # -h help page
 # -d choose default options: hourly, daily, weekly, monthly, yearly
 # -l the common label to be used if requested
 # -v verbose output 
 # -p pretend - don't take snapshots
+# -u <property>=<value> for user chosen ZFS properties
 
-printf "Lalala"
 # Path to binaries used 
 ZPOOL="/sbin/zpool"
 ZFS="/sbin/zfs"
@@ -38,9 +42,10 @@ LABEL=`${DATE} +"%FT%H:%M"`
 vflag=
 pflag=
 retention=10
+userproperty=
 
 # go through passed options and assign to variables
-while getopts 'hd:l:vp' OPTION
+while getopts 'hd:l:vpu:' OPTION
 do
 	case $OPTION in
 	h) 	# help goes here ... somehow 
@@ -53,8 +58,11 @@ do
 		;;
 	p) 	pflag=1
 		;;
-
-	?)    	printf "Usage: %s: [-a] [-b value] args\n" $(basename $0) >&2
+	u)	userproperty="$OPTARG"
+		;;
+	r)	retention="$OPTARG"
+		;;	
+	?)    	printf "Usage: %s: [-h] [-d <default-preset>] [-v] [-p] [-u <property>=<value>] [-r <num>]\n" $(basename $0) >&2
 		exit 2
 		;; 
 	esac
@@ -89,6 +97,13 @@ if [ -n "$DEFAULTOPT" ]; then
 	esac
 fi
 
+# set user property if given
+if [ -n "$userproperty" ]; then
+	set -- `echo "$userproperty" | tr '=' ' '`
+	SNAPSHOT_PROPERTY_NAME="$1"
+	SNAPSHOT_PROPERTY_VALUE="$2"
+fi
+
 # available pools - not implemented yet, but should allow for checking pool-wise activity
 ALLPOOLS=`${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1`
 
@@ -104,7 +119,12 @@ fi
 # get a list of all available zfs filesystems by listing them and then look for property and take snapshots
 for i in $(${ZFS} list | ${TAIL} -n +2 | ${TR} -s " " | ${CUT} -f 1 -d ' ') ; do
         # get state of auto-snapshot property, either true or false
-        VALUE=`${ZFS} get ${SNAPSHOT_PROPERTY_NAME} $i | ${TAIL} -n 1 | ${TR} -s ' ' | ${CUT} -f 3 -d ' '`
+	if [ "$vflag" ]; then
+		echo  "${ZFS} get ${SNAPSHOT_PROPERTY_NAME} $i | ${TAIL} -n 1 | ${TR} -s ' ' | ${CUT} -f 3 -d ' '"
+	 	VALUE=`${ZFS} get ${SNAPSHOT_PROPERTY_NAME} $i | ${TAIL} -n 1 | ${TR} -s ' ' | ${CUT} -f 3 -d ' '`	
+	else
+	        VALUE=`${ZFS} get ${SNAPSHOT_PROPERTY_NAME} $i | ${TAIL} -n 1 | ${TR} -s ' ' | ${CUT} -f 3 -d ' '`
+	fi
        	# do the snapshot dance
        	if [ $VALUE = $SNAPSHOT_PROPERTY_VALUE ]; then
 		if [ "$pflag" ]; then
@@ -122,8 +142,10 @@ let retention+=1
 for pool in $(${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1); do
 	if [ "$pflag" ]; then
 		list=`${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention}`
-		echo "Delete recursively:" 
-		echo "$list" 
+		if [ -n "$list" ]; then
+			echo "Delete recursively:" 
+			echo "$list" 
+		fi
 	else
 		$(${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention} | ${XARGS} -n 1 ${ZFS} destroy -r)
 	fi
