@@ -15,15 +15,15 @@
 # Path to binaries used 
 ZPOOL="/sbin/zpool"
 ZFS="/sbin/zfs"
-EGREP="egrep"
-GREP="grep"
-TAIL="tail"
-SORT="sort"
-XARGS="xargs"
-DATE="date"
-CUT="cut"
-TAIL="tail"
-TR="tr"
+EGREP="/usr/bin/egrep"
+GREP="/usr/bin/grep"
+TAIL="/usr/bin/tail"
+SORT="/usr/bin/sort"
+XARGS="/usr/bin/xargs"
+DATE="/bin/date"
+CUT="/usr/bin/cut"
+TAIL="/usr/bin/tail"
+TR="/usr/bin/tr"
 
 # property used to check if auto updates should be made or not
 SNAPSHOT_PROPERTY_NAME="com.sun:auto-snapshot"
@@ -43,9 +43,10 @@ vflag=
 pflag=
 retention=10
 userproperty=
+exclude=
 
 # go through passed options and assign to variables
-while getopts 'hd:l:vpu:' OPTION
+while getopts 'hd:l:vpu:e:' OPTION
 do
 	case $OPTION in
 	h) 	# help goes here ... somehow 
@@ -62,6 +63,8 @@ do
 		;;
 	r)	retention="$OPTARG"
 		;;	
+	e)      exclude="$OPTARG"
+		;;
 	?)    	printf "Usage: %s: [-h] [-d <default-preset>] [-v] [-p] [-u <property>=<value>] [-r <num>]\n" $(basename $0) >&2
 		exit 2
 		;; 
@@ -104,8 +107,14 @@ if [ -n "$userproperty" ]; then
 	SNAPSHOT_PROPERTY_VALUE="$2"
 fi
 
-# available pools - not implemented yet, but should allow for checking pool-wise activity
+# available pools for backup: zpool list - excludes 
 ALLPOOLS=`${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1`
+for item in ${exclude//,/ }; do
+	ALLPOOLS=${ALLPOOLS//${item}}
+done
+
+ALLPOOLS=`echo ${ALLPOOLS} | sed 's/ /|/g'`
+
 
 # determine if any of the pools are busy, if yes abort and print error
 POOLS_OK=`${ZPOOL} status | ${EGREP} -c "scrub completed|none requested|No known data errors"`
@@ -117,7 +126,7 @@ fi
 #TAKE SNAPSHOTS
 
 # get a list of all available zfs filesystems by listing them and then look for property and take snapshots
-for i in $(${ZFS} list | ${TAIL} -n +2 | ${TR} -s " " | ${CUT} -f 1 -d ' ') ; do
+for i in $(${ZFS} list | ${TAIL} -n +2 | ${TR} -s " " | ${CUT} -f 1 -d ' '| ${EGREP} -i "${ALLPOOLS}") ; do
         # get state of auto-snapshot property, either true or false
 	if [ "$vflag" ]; then
 		echo  "${ZFS} get ${SNAPSHOT_PROPERTY_NAME} $i | ${TAIL} -n 1 | ${TR} -s ' ' | ${CUT} -f 3 -d ' '"
@@ -139,12 +148,20 @@ done
 #DELETE SNAPSHOTS
 # adjust retention to work with tail i.e. increase by one
 let retention+=1
-for pool in $(${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1); do
-	if [ "$pflag" ]; then
+for pool in $(${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1 | ${EGREP} -i "${ALLPOOLS}"); do
+	if [ "$vflag" ]; then
+		echo "${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention}"
+		list=`${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention}`	
+	else
 		list=`${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention}`
+	fi
+	
+	if [ "$pflag" ]; then
 		if [ -n "$list" ]; then
 			echo "Delete recursively:" 
-			echo "$list" 
+			echo "$list"
+		else
+			echo "No snapshots to delete for pool ${pool}"
 		fi
 	else
 		$(${ZFS} list -t snapshot -o name | ${GREP} $pool@${LABELPREFIX} | ${SORT} -r | ${TAIL} -n +${retention} | ${XARGS} -n 1 ${ZFS} destroy -r)
