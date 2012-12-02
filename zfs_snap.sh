@@ -110,10 +110,9 @@ fi
 # available pools for backup: zpool list - excludes 
 ALLPOOLS=`${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1`
 for item in ${exclude//,/ }; do
-	ALLPOOLS=${ALLPOOLS//${item}}
+	ALLPOOLS=`echo $ALLPOOLS | sed -e s/^"${item}"[^:alnum:.:-]//g -e s/[^:alnum:.:-]"${item}"[^:alnum:.:-]/\ /g -e s/[^:alnum:.:-]"${item}"$//g`
 done
-
-ALLPOOLS=`echo ${ALLPOOLS} | sed 's/ /|/g'`
+ALLPOOLS=`echo ${ALLPOOLS} |sed 's/[a-zA-Z\.\_\-\:]*/\^&\$|\^&\//g' | sed 's/ /|/g'`
 
 
 # determine if any of the pools are busy, if yes abort and print error
