@@ -108,12 +108,12 @@ if [ -n "$userproperty" ]; then
 fi
 
 # available pools for backup: zpool list - excludes 
-ALLPOOLS=`${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1`
+ALLPOOLS=`${ZPOOL} list | ${TAIL} -n +2 | ${CUT} -d' ' -f1 | tr '\n' ' '` 
 for item in ${exclude//,/ }; do
 	ALLPOOLS=`echo $ALLPOOLS | sed -e s/^"${item}"[^:alnum:.:-]//g -e s/[^:alnum:.:-]"${item}"[^:alnum:.:-]/\ /g -e s/[^:alnum:.:-]"${item}"$//g`
 done
-ALLPOOLS=`echo ${ALLPOOLS} |sed 's/[a-zA-Z\.\_\-\:]*/\^&\$|\^&\//g' | sed 's/ /|/g'`
-
+# now create a pattern for egrep to match with 
+ALLPOOLS=`echo ${ALLPOOLS} |sed 's/[a-zA-Z0-9._:-]*/\^&\$|\^&\//g' | sed 's/ /|/g'`
 
 # determine if any of the pools are busy, if yes abort and print error
 POOLS_OK=`${ZPOOL} status | ${EGREP} -c "scrub completed|none requested|No known data errors"`
